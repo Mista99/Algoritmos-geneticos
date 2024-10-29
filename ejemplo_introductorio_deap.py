@@ -22,7 +22,7 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)  #ini
 toolbox.register("evaluate", fitness)
 toolbox.register("mate", tools.cxBlend, alpha=0.5) #"mate" es la operación de cruce. cxBlend es un método de cruce utilizando una media ponderada, promedio equilibrado entre los dos padres.
                                                    #Valores m 0 favorecerán al primer padre, mientras que cercanos a 1 favorecerán al segundo padre.
-toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.2) # mutacion basada en una distribución normal (Gaussiana), con uan probabilidad de un 20% de sufrir una mutacion para cada gen
+toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1) # mutacion basada en una distribución normal (Gaussiana), con uan probabilidad de un 20% de sufrir una mutacion para cada gen
 toolbox.register("select", tools.selTournament, tournsize=3) #para cada selección, se eligen 3 individuos aleatorios de la población, y el individuo con mejor fitness entre ellos es el que se seleccion
 
 # Parámetros del algoritmo
@@ -56,14 +56,17 @@ def main():
         offspring = list(map(toolbox.clone, offspring)) #se clonan para no afectar la poblacion original
 
         # Cruzamiento y mutación
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < 0.5:  # Probabilidad de cruzamiento
+        for child1, child2 in zip(offspring[::2], offspring[1::2]): 
+            #[::2]: selecciona a los individuos en las posiciones pares 
+            #[1::2]: selecciona a los individuos en las posiciones impares
+            #tira una moneda, si sale menor a 0.5, se cruzan
+            if random.random() < 0.5:
                 toolbox.mate(child1, child2)
                 del child1.fitness.values
                 del child2.fitness.values
 
         for mutant in offspring:
-            if random.random() < 0.2:  # Probabilidad de mutación
+            if random.random() < 0.1:  # Probabilidad de mutación
                 toolbox.mutate(mutant)
                 del mutant.fitness.values
 
