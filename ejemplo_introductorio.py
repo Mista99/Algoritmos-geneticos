@@ -1,92 +1,110 @@
-import random
 import numpy as np
-from deap import base, creator, tools, algorithms
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import random
 
-# Función objetivo (ejemplo: minimizar la función de Rastrigin)
-def funcion_objetivo(individual):
-    # Asegúrate de que devuelve una tupla con un solo valor
-    return (sum(x**2 - 10*np.cos(2*np.pi*x) for x in individual),)  
+def fitness(x, y):
+    return x**2 + y**2 - 2*x - 2*y + 1
 
-# Configuración del algoritmo genético
-toolbox = base.Toolbox()
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", list, fitness=creator.FitnessMin)
+def create_individual():
+    x = random.uniform(-10, 10)  # Limitar x entre -10 y 10
+    y = random.uniform(-10, 10)  # Limitar y entre -10 y 10
+    return (x, y)
 
-# Generación de individuos
-toolbox.register("attr_float", random.uniform, -5.12, 5.12)
-toolbox.register("individual", tools.initRepeat, creator.Individual,
-                   toolbox.attr_float, 30)  # 30 genes por individuo
-toolbox.register("population", tools.initRepeat, list, toolbox.individual, 100)  # Población inicial de 100 individuos
+# Evaluar la población
+def evaluate_population(population):
+    fitness_scores = [fitness(x, y) for x, y in population]
+    print("\nEvaluando población:")
+    for individual, score in zip(population, fitness_scores):
+        print(f"Individuo: {individual}, Aptitud: {score}")
+    return fitness_scores
 
-# Operadores genéticos
-toolbox.register("evaluate", funcion_objetivo)
-toolbox.register("mate", tools.cxBlend, alpha=0.5)
-toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.2)
-toolbox.register("select", tools.selTournament, tournsize=3)
-
-# Parámetros del algoritmo
-CXPB, MUTPB, NGEN = 0.5, 0.2, 20  # Probabilidad de cruce, mutación y número de generaciones
-
-# Ejecución del algoritmo genético
-pop = toolbox.population()
-hof = tools.HallOfFame(1)
-
-# Cambié la forma en que se manejan los valores de fitness en las estadísticas
-stats = tools.Statistics(lambda ind: ind.fitness.values[0] if ind.fitness else float('inf'))  # Para evitar errores
-
-stats.register("avg", np.mean)
-stats.register("std", np.std)
-stats.register("min", np.min)
-stats.register("max", np.max)
-
-logbook = tools.Logbook()
-logbook.header = ['gen', 'nevals'] + stats.fields
-
-for gen in range(NGEN):
-    # Generación de la siguiente generación
-    offspring = algorithms.varAnd(pop, toolbox, CXPB, MUTPB)
-
-    # Evaluación de los individuos
-    fits = toolbox.map(toolbox.evaluate, offspring)
-    for fit, ind in zip(fits, offspring):
-        ind.fitness.values = fit  # Asigna el valor de fitness
-
-    # Comprobar que todos los individuos tienen valores de fitness antes de la selección
-    for ind in offspring + pop:
-        if not ind.fitness.valid:  # Si no es válido, se recalcula
-            ind.fitness.values = toolbox.evaluate(ind)
-
-    # Muestra solo el mejor individuo de la generación
-    best_individual = tools.selBest(pop, 1)[0]
-    print(f"\nMejor individuo de la generación {gen}: \n{best_individual}")
-
-
-    # Selección para la próxima generación
-    pop[:] = toolbox.select(offspring + pop, len(pop))  # Selección correcta
-    hof.update(pop)
+# Seleccionar los 2 mejores individuos
+def select_best(population, fitness_scores, n=3):
+    sorted_population = sorted(zip(population, fitness_scores), key=lambda pair: pair[1], reverse=False)
+    best_individuals = [pair[0] for pair in sorted_population[:n]]
     
-    # Registro de estadísticas
-    record = stats.compile(pop)
-    logbook.record(gen=gen, nevals=len(offspring), **record)
+    print("\nSeleccionando los mejores individuos:")
+    for individual in best_individuals:
+        print(f"Individuo: {individual}, Aptitud: {fitness(*individual)}")
+    
+    return best_individuals
 
-# Función para visualizar la evolución de la población
-def plot_evolucion(logbook):
-    gen = logbook.select('gen')
-    avg = logbook.select('avg')
-    min_ = logbook.select('min')
-    max_ = logbook.select('max')
+def mutate(individual, mutation_rate=0.1):
+    x, y = individual
+    if random.random() < mutation_rate:  # Aplicar mutación según la tasa de mutación
+        mutation_value_x = random.uniform(-1, 1)  # Cambiar x en un rango de -1 a 1
+        mutation_value_y = random.uniform(-1, 1)  # Cambiar y en un rango de -1 a 1
+        x += mutation_value_x
+        y += mutation_value_y
+        # Limitar x y y entre -10 y 10
+        x = max(-10, min(10, x))
+        y = max(-10, min(10, y))
+    return (x, y)
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(gen, avg, label='Promedio', color='blue')
-    plt.plot(gen, min_, label='Mínimo', color='red')
-    plt.plot(gen, max_, label='Máximo', color='green')
-    plt.xlabel('Generación')
-    plt.ylabel('Valor de Fitness')
-    plt.title('Evolución del Fitness a lo largo de las generaciones')
-    plt.legend(loc='upper right')
-    plt.grid()
-    plt.show()
+def crossover(parent1, parent2):
+    # Combina los genes de dos padres para crear un nuevo individuo
+    child_x = (parent1[0] + parent2[0]) / 2  # Promedio de x
+    child_y = (parent1[1] + parent2[1]) / 2  # Promedio de y
+    return (child_x, child_y)
 
-# Visualización de los resultados
-plot_evolucion(logbook)
+def replace_population(best_individuals, population_size):
+    # Reemplazar la población con los mejores individuos
+    new_population = best_individuals.copy()
+    while len(new_population) < population_size:
+        new_population.append(create_individual())  # Completar con nuevos individuos aleatorios
+    return new_population
+
+#funcion principal del algoritmo
+def genetic_algorithm(generations, population_size):
+
+    population = [create_individual() for _ in range(population_size)]
+
+    for generation in range(generations):
+        print(f"\n--- Generación {generation + 1} ---")
+
+        fitness_scores = evaluate_population(population)
+        best_individuals = select_best(population, fitness_scores)
+
+        # Crear nuevos individuos a través de cruzamiento
+        new_population = []
+        while len(new_population) < population_size:
+            # Elegir aleatoriamente dos padres de los mejores individuos
+            parent1, parent2 = random.sample(best_individuals, 2)
+            child = crossover(parent1, parent2)  # Cruzar los padres para crear un hijo
+            new_population.append(mutate(child))  # Mutar el hijo
+
+        population = replace_population(best_individuals, population_size)
+
+    best_solution = best_individuals[0]
+    print("\nMejor solución encontrada:")
+    print(f"Individuo: {best_solution}, Aptitud: {fitness(*best_solution)}")
+
+# Parámetros
+generations = 5
+population_size = 10
+
+genetic_algorithm(generations, population_size)
+
+#--------------plotear la funcion objetivo--------------#
+x = np.linspace(-10, 10, 400)
+y = np.linspace(-10, 10, 400)
+X, Y = np.meshgrid(x, y)
+
+Z = fitness(X, Y)
+
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection='3d')
+
+#plotea la superficie
+ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
+
+ax.set_title('Gráfica de la función objetivo en 3D')
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('f(X, Y)')
+ax.set_xlim(-10, 10)
+ax.set_ylim(-10, 10)
+ax.set_zlim(np.min(Z), np.max(Z))
+
+plt.show()
